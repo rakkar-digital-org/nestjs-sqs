@@ -11,10 +11,9 @@
     "target": "es6",
     "sourceMap": false,
     "outDir": "./dist",
-    "rootDir": "./lib",
     "skipLibCheck": true,
     "baseUrl": "./"
   },
-  "include": ["lib", "e2e"],
-  "exclude": ["node_modules", "dist", "test", "**/*spec.ts"]
+  "include": ["lib/**/*.ts", "e2e/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

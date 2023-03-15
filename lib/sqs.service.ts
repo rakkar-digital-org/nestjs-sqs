@@ -4,8 +4,7 @@ import { Producer } from 'sqs-producer';
 import { Message, QueueName, SqsConsumerEventHandlerMeta, SqsMessageHandlerMeta, SqsOptions } from './sqs.types';
 import { DiscoveryService } from '@nestjs-plus/discovery';
 import { SQS_CONSUMER_EVENT_HANDLER, SQS_CONSUMER_METHOD, SQS_OPTIONS } from './sqs.constants';
-import * as AWS from 'aws-sdk';
-import type { QueueAttributeName } from 'aws-sdk/clients/sqs';
+import { GetQueueAttributesCommand, PurgeQueueCommand, QueueAttributeName, SQSClient } from '@aws-sdk/client-sqs';
 
 @Injectable()
 export class SqsService implements OnModuleInit, OnModuleDestroy {
@@ -91,7 +90,7 @@ export class SqsService implements OnModuleInit, OnModuleDestroy {
     }
 
     const { sqs, queueUrl } = (this.consumers.get(name) ?? this.producers.get(name)) as {
-      sqs: AWS.SQS;
+      sqs: SQSClient;
       queueUrl: string;
     };
     if (!sqs) {
@@ -106,21 +105,21 @@ export class SqsService implements OnModuleInit, OnModuleDestroy {
 
   public async purgeQueue(name: QueueName) {
     const { sqs, queueUrl } = this.getQueueInfo(name);
-    return sqs
-      .purgeQueue({
-        QueueUrl: queueUrl,
-      })
-      .promise();
+    const cmd = new PurgeQueueCommand({
+      QueueUrl: queueUrl,
+    });
+
+    return sqs.send(cmd);
   }
 
   public async getQueueAttributes(name: QueueName) {
     const { sqs, queueUrl } = this.getQueueInfo(name);
-    const response = await sqs
-      .getQueueAttributes({
-        QueueUrl: queueUrl,
-        AttributeNames: ['All'],
-      })
-      .promise();
+    const cmd = new GetQueueAttributesCommand({
+      QueueUrl: queueUrl,
+      AttributeNames: ['All'],
+    })
+    const response = await sqs.send(cmd);
+
     return response.Attributes as { [key in QueueAttributeName]: string };
   }
 
@@ -139,9 +138,11 @@ export class SqsService implements OnModuleInit, OnModuleDestroy {
 
     const originalMessages = Array.isArray(payload) ? payload : [payload];
     const messages = originalMessages.map((message) => {
-      let body = message.body;
-      if (typeof body !== 'string') {
-        body = JSON.stringify(body) as any;
+      let body: string
+      if (typeof message.body !== 'string') {
+        body = JSON.stringify(message.body);
+      } else {
+        body = message.body;
       }
 
       return {
@@ -151,6 +152,6 @@ export class SqsService implements OnModuleInit, OnModuleDestroy {
     });
 
     const producer = this.producers.get(name);
-    return producer.send(messages as any[]);
+    return producer.send(messages);
   }
 }
